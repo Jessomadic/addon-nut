@@ -1,4 +1,4 @@
-#!/usr/bin/with-contenv bashio
+#!/command/with-contenv bashio
 # ==============================================================================
 # Home Assistant Community Add-on: Network UPS Tools
 # Configures Network UPS Tools
@@ -10,6 +10,13 @@ declare password
 declare shutdowncmd
 declare upsmonpwd
 declare username
+
+chown root:root /var/run/nut
+chmod 0770 /var/run/nut
+
+chown -R root:root /etc/nut
+find /etc/nut -not -perm 0660 -type f -exec chmod 0660 {} \;
+find /etc/nut -not -perm 0660 -type d -exec chmod 0660 {} \;
 
 nutmode=$(bashio::config 'mode')
 bashio::log.info "Setting mode to ${nutmode}..."
@@ -73,6 +80,11 @@ if bashio::config.equals 'mode' 'netserver' ;then
         upsname=$(bashio::config "devices[${device}].name")
         upsdriver=$(bashio::config "devices[${device}].driver")
         upsport=$(bashio::config "devices[${device}].port")
+        if bashio::config.has_value "devices[${device}].powervalue"; then
+            upspowervalue=$(bashio::config "devices[${device}].powervalue")
+        else
+            upspowervalue="1"
+        fi
 
         bashio::log.info "Configuring Device named ${upsname}..."
         {
@@ -89,7 +101,7 @@ if bashio::config.equals 'mode' 'netserver' ;then
         done
         IFS="$OIFS"
 
-        echo "MONITOR ${upsname}@localhost 1 upsmonmaster ${upsmonpwd} master" \
+        echo "MONITOR ${upsname}@localhost ${upspowervalue} upsmonmaster ${upsmonpwd} master" \
             >> /etc/nut/upsmon.conf
     done
 
@@ -102,7 +114,7 @@ if bashio::config.equals 'mode' 'netserver' ;then
     fi
 fi
 
-shutdowncmd="\"s6-svscanctl -t /var/run/s6/services\""
+shutdowncmd="/run/s6/basedir/bin/halt"
 if bashio::config.true 'shutdown_host'; then
     bashio::log.warning "UPS Shutdown will shutdown the host"
     shutdowncmd="/usr/bin/shutdownhost"
